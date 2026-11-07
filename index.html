@@ -1,0 +1,170 @@
+<title>Courtside Tap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one screen, no scrolling. Thin top bar, possession band (swipe/tap to switch), 2x2 giant buttons. */
+:root{
+  --bg:#0f1311; --fg:#f2f5f3; --muted:#9aa8a0; --line:#2a332e; --pad:#1c2420; --padhi:#26302b;
+  --home:#2f6ae6; --away:#13996b; --hot:#f06a3a;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;margin:0;
+  padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px));padding-block:8px;
+  box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.app{height:100%;display:flex;flex-direction:column;gap:8px;max-width:640px;margin:0 auto}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+select{flex:1;min-width:0;font:600 14px var(--mono);padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--pad);color:var(--fg)}
+.small{font:500 13px var(--mono);color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+button.undo{font:600 14px var(--mono);padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg)}
+.poss{flex:0 0 27%;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-family:var(--display);text-transform:uppercase;cursor:pointer;transition:background .12s;touch-action:pan-y}
+.poss .who{font-weight:800;font-size:clamp(40px,13vw,72px);line-height:1;letter-spacing:.02em}
+.poss .hint{font:500 13px var(--mono);text-transform:none;opacity:.85}
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;min-height:0}
+.b{border:0;border-radius:16px;background:var(--pad);color:var(--fg);font-family:var(--display);font-weight:800;
+  font-size:clamp(34px,11vw,60px);text-transform:uppercase;letter-spacing:.02em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.b small{font:500 12px var(--mono);text-transform:none;letter-spacing:0;color:var(--muted)}
+.b:active,.b.flash{background:var(--hot);color:#fff}
+.b:active small,.b.flash small{color:#fff}
+.b:focus-visible,.poss:focus-visible{outline:3px solid var(--hot);outline-offset:2px}
+.last{font:500 13px var(--mono);color:var(--muted);text-align:center;min-height:18px}
+.score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
+.side{display:flex;align-items:center;gap:6px;min-width:0}
+.side.r{justify-content:flex-end}
+.tm{font:800 18px var(--display);text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pts{font:800 clamp(34px,10vw,48px) var(--display);font-variant-numeric:tabular-nums;line-height:1;background:none;border:0;color:var(--fg);padding:0 2px}
+.adj{font:600 16px var(--mono);width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--pad);color:var(--muted);flex:0 0 auto}
+.dash{font:800 28px var(--display);color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.poss{transition:none}}
+</style>
+
+<div class="app">
+  <div class="bar">
+    <label for="game" class="small" hidden>Game</label>
+    <select id="game" aria-label="Game"></select>
+    <span class="small" id="clock">--:--:--.-</span>
+    <button class="undo" id="undo">Undo</button>
+  </div>
+
+  <div class="score" aria-label="Score">
+    <div class="side"><button class="adj" data-s="away" data-d="-1" aria-label="Away score minus one">−</button><span class="tm" id="tA" style="color:var(--away)">Magic</span><button class="pts" id="sA" data-s="away" data-d="1" aria-label="Away score, tap to add one">0</button></div>
+    <span class="dash">–</span>
+    <div class="side r"><button class="pts" id="sH" data-s="home" data-d="1" aria-label="Home score, tap to add one">0</button><span class="tm" id="tH" style="color:var(--home)">Warriors</span><button class="adj" data-s="home" data-d="-1" aria-label="Home score minus one">−</button></div>
+  </div>
+
+  <div class="poss" id="poss" role="button" tabindex="0" aria-label="Team with the ball. Tap or swipe to switch">
+    <div class="who" id="who">Warriors</div>
+    <div class="hint">has the ball · tap or swipe to switch</div>
+  </div>
+
+  <div class="grid">
+    <button class="b" data-k="2pt">Made 2<small>ball went in</small></button>
+    <button class="b" data-k="3pt">Made 3<small>ball went in</small></button>
+    <button class="b" data-k="breakaway">Sure 2<small>breakaway · counts as 2</small></button>
+    <button class="b" data-k="ft">Free throw<small>made</small></button>
+  </div>
+
+  <div class="last" id="last">Taps go to the trading program with the exact time.</div>
+</div>
+
+<script>
+const GAMES=[
+  {id:"KXNBAGAME-26NOV07ORLGSW",label:"Magic @ Warriors · Sat 11/7",away:"Magic",home:"Warriors"},
+  {id:"KXNBAGAME-26NOV09NOPGSW",label:"Pelicans @ Warriors · Mon 11/9",away:"Pelicans",home:"Warriors"},
+  {id:"KXNCAAMBGAME-26NOV10MONTSF",label:"Montana @ USF · Tue 11/10",away:"Montana",home:"USF"},
+  {id:"TEST",label:"Practice (not sent)",away:"Away",home:"Home"}
+];
+const $=s=>document.querySelector(s);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const sel=$("#game");
+GAMES.forEach(g=>{const o=document.createElement("option");o.value=g.id;o.textContent=g.label;sel.appendChild(o)});
+sel.value=store.get("game",GAMES[0].id);
+const game=()=>GAMES.find(g=>g.id===sel.value)||GAMES[0];
+let poss=store.get("poss","home");
+let taps=store.get("taps",[]), pending=store.get("pending",[]);
+let db=null, me="anon";
+const fmt=ms=>{const d=new Date(ms);return d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})+"."+Math.floor(d.getMilliseconds()/100)};
+setInterval(()=>{$("#clock").textContent=fmt(Date.now())},100);
+
+const PTS={"2pt":2,"3pt":3,"breakaway":2,"ft":1};
+function scoreNow(){const s={home:0,away:0};taps.filter(t=>t.game===sel.value).forEach(t=>{if(PTS[t.kind])s[t.side]+=PTS[t.kind];if(t.kind==="adj")s[t.side]+=t.d});return s}
+function score(){
+  const s=scoreNow();
+  $("#sA").textContent=s.away;$("#sH").textContent=s.home;
+}
+function paint(){
+  const g=game(); const p=$("#poss");
+  $("#tA").textContent=g.away;$("#tH").textContent=g.home;score();
+  $("#who").textContent=poss==="home"?g.home:g.away;
+  p.style.background=poss==="home"?"var(--home)":"var(--away)";
+}
+function lastLine(){
+  score();
+  const mine=taps.filter(t=>t.game===sel.value&&PTS[t.kind]);const t=mine[mine.length-1];const g=game();
+  const up=pending.length?` · ${pending.length} waiting to upload`:(db?" · sent":"");
+  $("#last").textContent=(lastOrders?lastOrders+" — ":"")+(t?`Last: ${t.side==="home"?g.home:g.away} ${({"2pt":"made 2","3pt":"made 3","breakaway":"sure 2","ft":"free throw"})[t.kind]} at ${fmt(t.t_ms)} · ${mine.length} taps${up}`:"Taps go to the trading program with the exact time.");
+}
+const API="https://tujocbvdygckjpbfvhtq.supabase.co/functions/v1/sports-courtside";
+let PASS=store.get("pass","");
+const hp=new URLSearchParams(location.hash.slice(1)).get("p");if(hp){PASS=hp;store.set("pass",PASS);history.replaceState(null,"",location.pathname)}
+let lastOrders="";
+async function push(t){
+  if(t.game==="TEST"){return}
+  if(!PASS){PASS=(prompt("Passcode")||"").trim();store.set("pass",PASS)}
+  try{const s=scoreNow();
+    const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pass:PASS,tap:{...t,game:t.game.split("-").pop(),score_home:s.home,score_away:s.away}})});
+    if(r.status===403){PASS="";store.set("pass","");throw new Error("pass")}
+    const j=await r.json();pending=pending.filter(x=>x!==t.id);db=true;
+    if(j.orders&&PTS[t.kind])lastOrders=j.orders.length?`Paper buys: ${j.orders.length} (${j.orders.slice(0,3).map(o=>o.ticker.split("-").pop()+" "+o.side+" "+o.price_c+"c→"+o.fair_c+"c").join(", ")}${j.orders.length>3?", …":""}) · books ${j.book_ms} ms`:`No buys (nothing 5c+ under fair) · books ${j.book_ms} ms`;
+  }catch(e){if(!pending.includes(t.id))pending.push(t.id)}
+  store.set("pending",pending);lastLine();
+}
+async function flush(){for(const id of [...pending]){const t=taps.find(x=>x.id===id);if(t)await push(t);else pending=pending.filter(x=>x!==id)}store.set("pending",pending);lastLine()}
+function log(kind,side,t_ms,extra){
+  const t={id:t_ms+"-"+Math.random().toString(36).slice(2,7),game:sel.value,side,kind,t_ms,iso:new Date(t_ms).toISOString(),by:me,...(extra||{})};
+  taps.push(t);store.set("taps",taps);
+  if(t.game!=="TEST"){pending.push(t.id);store.set("pending",pending)}
+  push(t);return t;
+}
+function flip(t_ms){poss=poss==="home"?"away":"home";store.set("poss",poss);paint();log("poss",poss,t_ms||Date.now())}
+
+// scoring buttons: fire on finger down for the most exact time
+document.querySelectorAll(".b").forEach(b=>{
+  const fire=e=>{e.preventDefault();const t_ms=Date.now();
+    try{navigator.vibrate&&navigator.vibrate(35)}catch(_){}
+    b.classList.add("flash");setTimeout(()=>b.classList.remove("flash"),160);
+    const k=b.dataset.k; log(k,poss,t_ms);
+    if(k==="2pt"||k==="3pt"||k==="breakaway") flip(t_ms+1); // made basket: ball goes to the other team
+    lastLine();};
+  b.addEventListener("pointerdown",fire);
+  b.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" ")fire(e)});
+});
+// possession band: tap or swipe either way to switch
+let sx=null;
+const P=$("#poss");
+P.addEventListener("pointerdown",e=>{sx=e.clientX});
+P.addEventListener("pointerup",e=>{if(sx===null)return;sx=null;flip();try{navigator.vibrate&&navigator.vibrate(15)}catch(_){}});
+P.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "||e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();flip()}});
+sel.onchange=()=>{store.set("game",sel.value);paint();lastLine()};
+document.querySelectorAll("[data-s]").forEach(b=>b.addEventListener("click",()=>{log("adj",b.dataset.s,Date.now(),{d:+b.dataset.d});lastLine()}));
+$("#undo").onclick=async()=>{
+  const mine=taps.filter(t=>t.game===sel.value&&t.kind!=="undo");let t=mine[mine.length-1];if(!t)return;
+  const gone=[t];const prev=mine[mine.length-2];
+  if(t.kind==="poss"&&prev&&PTS[prev.kind]&&t.t_ms-prev.t_ms<=1)gone.push(prev); // a basket and its automatic possession switch undo together
+  for(const x of gone){
+    taps=taps.filter(y=>y.id!==x.id);pending=pending.filter(y=>y!==x.id);
+    if(x.kind==="poss"){poss=poss==="home"?"away":"home";store.set("poss",poss)}
+    if(x.game!=="TEST"){const u={id:Date.now()+"-u"+Math.random().toString(36).slice(2,6),game:x.game,side:x.side,kind:"undo",ref:x.id,t_ms:Date.now()};taps.push(u);push(u).then(()=>{taps=taps.filter(y=>y.id!==u.id);store.set("taps",taps)})}
+  }
+  store.set("taps",taps);store.set("pending",pending);paint();lastLine();
+};
+async function wake(){try{await navigator.wakeLock?.request("screen")}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")wake()});
+wake();
+setInterval(()=>{if(pending.length)flush()},5000);
+paint();lastLine();
+if(pending.length)flush();
+</script>
