@@ -108,15 +108,13 @@ function lastLine(){
   $("#last").textContent=(lastOrders?lastOrders+" — ":"")+(t?`Last: ${t.side==="home"?g.home:g.away} ${({"2pt":"made 2","3pt":"made 3","breakaway":"sure 2","ft":"free throw"})[t.kind]} at ${fmt(t.t_ms)} · ${mine.length} taps${up}`:"Taps go to the trading program with the exact time.");
 }
 const API="https://tujocbvdygckjpbfvhtq.supabase.co/functions/v1/sports-courtside";
-let PASS=store.get("pass","");
-const hp=new URLSearchParams(location.hash.slice(1)).get("p");if(hp){PASS=hp;store.set("pass",PASS);history.replaceState(null,"",location.pathname)}
+if(location.hash)history.replaceState(null,"",location.pathname);
 let lastOrders="";
 async function push(t){
   if(t.game==="TEST"){return}
-  if(!PASS){PASS=(prompt("Passcode")||"").trim();store.set("pass",PASS)}
   try{const s=scoreNow();
-    const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pass:PASS,tap:{...t,game:t.game.split("-").pop(),score_home:s.home,score_away:s.away}})});
-    if(r.status===403){PASS="";store.set("pass","");throw new Error("pass")}
+    const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tap:{...t,game:t.game.split("-").pop(),score_home:s.home,score_away:s.away}})});
+    if(r.status!==200)throw new Error("http "+r.status);
     const j=await r.json();pending=pending.filter(x=>x!==t.id);db=true;
     if(j.orders&&PTS[t.kind])lastOrders=j.orders.length?`Paper buys: ${j.orders.length} (${j.orders.slice(0,3).map(o=>o.ticker.split("-").pop()+" "+o.side+" "+o.price_c+"c→"+o.fair_c+"c").join(", ")}${j.orders.length>3?", …":""}) · books ${j.book_ms} ms`:`No buys (nothing 5c+ under fair) · books ${j.book_ms} ms`;
   }catch(e){if(!pending.includes(t.id))pending.push(t.id)}
